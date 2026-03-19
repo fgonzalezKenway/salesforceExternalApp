@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Networking Plan Workspace</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div class="hero-copy">
+                <p class="eyebrow">Standalone Workspace</p>
+                <h1>Networking plans, outside Salesforce.</h1>
+                <p class="hero-text">
+                    This site reads and updates networking-plan Contacts through a server-side integration user,
+                    so your end users can manage the plans without logging into Salesforce.
+                </p>
+            </div>
+            <div class="hero-status">
+                <div class="status-card">
+                    <span class="status-label">Server Status</span>
+                    <strong id="healthStatus">Checking connection...</strong>
+                </div>
+                <div class="status-card">
+                    <span class="status-label">Visible Contacts</span>
+                    <strong id="resultCount">0</strong>
+                </div>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <section class="list-panel panel">
+                <div class="panel-header">
+                    <div>
+                        <p class="section-label">Plan Filters</p>
+                        <h2>Contact list</h2>
+                    </div>
+                    <button id="refreshButton" class="ghost-button" type="button">Refresh</button>
+                </div>
+
+                <div class="filter-grid">
+                    <label class="field">
+                        <span>Networking Plan</span>
+                        <select id="verticalFilter"></select>
+                    </label>
+                    <label class="field field-search">
+                        <span>Search</span>
+                        <input id="searchInput" type="search" placeholder="Name, account, title, city">
+                    </label>
+                </div>
+
+                <div id="messageBar" class="message-bar hidden" role="status"></div>
+
+                <div class="table-wrap">
+                    <table class="contact-table">
+                        <thead>
+                            <tr>
+                                <th>Contact</th>
+                                <th>Account</th>
+                                <th>Account Vertical</th>
+                                <th>Owner</th>
+                                <th>Status</th>
+                                <th>Next Interaction</th>
+                                <th>Last Interaction</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactTableBody">
+                            <tr>
+                                <td colspan="7" class="empty-state-cell">Loading contacts...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="editor-panel panel">
+                <div class="panel-header">
+                    <div>
+                        <p class="section-label">Contact Editor</p>
+                        <h2 id="editorTitle">Select a contact</h2>
+                    </div>
+                    <div class="editor-actions">
+                        <button id="resetButton" class="ghost-button" type="button" disabled>Reset</button>
+                        <button id="saveButton" class="primary-button" type="button" disabled>Save Changes</button>
+                    </div>
+                </div>
+
+                <form id="editorForm" class="editor-form">
+                    <div class="editor-placeholder" id="editorPlaceholder">
+                        Choose a contact from the list to review and edit the networking-plan fields.
+                    </div>
+
+                    <div id="editorFields" class="editor-fields hidden">
+                        <div class="read-only-grid">
+                            <div class="read-only-card">
+                                <span>Account</span>
+                                <strong id="readOnlyAccount">-</strong>
+                            </div>
+                            <div class="read-only-card">
+                                <span>Account Vertical</span>
+                                <strong id="readOnlyVertical">-</strong>
+                            </div>
+                            <div class="read-only-card">
+                                <span>Last Interaction</span>
+                                <strong id="readOnlyLastInteraction">-</strong>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <label class="field">
+                                <span>Title</span>
+                                <input name="Title" type="text">
+                            </label>
+                            <label class="field">
+                                <span>City</span>
+                                <input name="MailingCity" type="text">
+                            </label>
+                            <label class="field">
+                                <span>Relationship Status</span>
+                                <select name="Kenway_Status__c" data-options-source="kenwayStatusOptions"></select>
+                            </label>
+                            <label class="field">
+                                <span>Challenger Profile</span>
+                                <select name="Challenger_Profile__c" data-options-source="challengerProfileOptions"></select>
+                            </label>
+                            <label class="field">
+                                <span>Relationship Owner</span>
+                                <select name="Networking_Owner__c" data-options-source="ownerOptions"></select>
+                            </label>
+                            <label class="field">
+                                <span>Networking Priority</span>
+                                <select name="Kenway_s_Priority__c" data-options-source="networkingPriorityOptions"></select>
+                            </label>
+                            <label class="field">
+                                <span>Next Planned Interaction</span>
+                                <input name="Next_Planned_Interaction__c" type="date">
+                            </label>
+                            <label class="field checkbox-field">
+                                <span>Active</span>
+                                <input name="Active__c" type="checkbox">
+                            </label>
+                        </div>
+
+                        <label class="field field-full">
+                            <span>Networking Plan Associations</span>
+                            <select name="Networking_Plan_Association__c" data-options-source="planAssociationOptions" multiple size="6"></select>
+                        </label>
+
+                        <label class="field field-full">
+                            <span>Next Steps</span>
+                            <textarea name="Next_Steps__c" rows="4"></textarea>
+                        </label>
+
+                        <label class="field field-full">
+                            <span>Networking Notes</span>
+                            <textarea name="Networking_Notes__c" rows="8"></textarea>
+                        </label>
+                    </div>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
