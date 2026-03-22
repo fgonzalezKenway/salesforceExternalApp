@@ -7,7 +7,8 @@ loadLocalEnv();
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT || 3001);
-const API_VERSION = process.env.SF_API_VERSION || 'v62.0';
+const API_VERSION = process.env.SF_API_VERSION || 'v66.0';
+const AUTH_FLOW = (process.env.SF_AUTH_FLOW || 'client_credentials').toLowerCase();
 const LOGIN_URL = process.env.SF_LOGIN_URL || 'https://login.salesforce.com';
 
 const CONTACT_SELECT_FIELDS = [
@@ -21,14 +22,30 @@ const CONTACT_SELECT_FIELDS = [
     'Networking_Owner__r.Name',
     'Kenway_Status__c',
     'Last_Interaction_Date__c',
+    'Last_Interaction_Organizer__c',
+    'Last_Interaction_Organizer__r.Name',
     'Next_Planned_Interaction__c',
     'Kenway_s_Priority__c',
     'Next_Steps__c',
     'Networking_Notes__c',
+    'Networking_Notes_Short__c',
     'Networking_Plan_Association__c',
     'AccountId',
     'Account.Name',
     'Account.Kenway_Vertical__c'
+];
+
+const ACCOUNT_SELECT_FIELDS = [
+    'Id',
+    'Name',
+    'Industry',
+    'Website',
+    'BillingCity',
+    'BillingState',
+    'Description',
+    'Annual_Revenue__c',
+    'Target_Company__c',
+    'Kenway_Vertical__c'
 ];
 
 const UPDATEABLE_FIELDS = new Set([
@@ -45,11 +62,229 @@ const UPDATEABLE_FIELDS = new Set([
     'Networking_Plan_Association__c'
 ]);
 
+const CREATEABLE_FIELDS = new Set([
+    'FirstName',
+    'LastName',
+    'AccountId',
+    'Title',
+    'MailingCity',
+    'Active__c',
+    'Challenger_Profile__c',
+    'Networking_Owner__c',
+    'Kenway_Status__c',
+    'Kenway_s_Priority__c',
+    'Next_Steps__c',
+    'Networking_Notes__c',
+    'Networking_Plan_Association__c'
+]);
+
+const ACCOUNT_CREATEABLE_FIELDS = new Set([
+    'Name',
+    'Industry',
+    'Website',
+    'BillingCity',
+    'BillingState',
+    'Description',
+    'Annual_Revenue__c',
+    'Target_Company__c'
+]);
+
 const PICKLIST_FIELD_NAMES = [
     'Networking_Plan_Association__c',
     'Challenger_Profile__c',
     'Kenway_Status__c',
     'Kenway_s_Priority__c'
+];
+
+const ACCOUNT_PICKLIST_FIELD_NAMES = [
+    'Industry',
+    'Annual_Revenue__c',
+    'Target_Company__c'
+];
+
+const LIST_COLUMN_CATALOG = {
+    name: {
+        key: 'name',
+        label: 'Name',
+        type: 'text',
+        editable: false
+    },
+    accountName: {
+        key: 'accountName',
+        label: 'Company Name',
+        type: 'text',
+        editable: false
+    },
+    title: {
+        key: 'title',
+        label: 'Title',
+        type: 'text',
+        editable: true,
+        updateField: 'Title'
+    },
+    networkingPlanAssociation: {
+        key: 'networkingPlanAssociation',
+        label: 'Networking Plan Association',
+        type: 'multiselect',
+        editable: true,
+        updateField: 'Networking_Plan_Association__c',
+        optionsSource: 'planAssociationOptions'
+    },
+    mailingCity: {
+        key: 'mailingCity',
+        label: 'Mailing City',
+        type: 'text',
+        editable: true,
+        updateField: 'MailingCity'
+    },
+    challengerProfile: {
+        key: 'challengerProfile',
+        label: 'Challenger Profile',
+        type: 'select',
+        editable: true,
+        updateField: 'Challenger_Profile__c',
+        optionsSource: 'challengerProfileOptions'
+    },
+    networkingOwner: {
+        key: 'networkingOwnerId',
+        displayKey: 'networkingOwnerName',
+        label: 'Networking Owner',
+        type: 'select',
+        editable: true,
+        updateField: 'Networking_Owner__c',
+        optionsSource: 'ownerOptions'
+    },
+    kenwayStatus: {
+        key: 'kenwayStatus',
+        label: 'Relationship Status',
+        type: 'select',
+        editable: true,
+        updateField: 'Kenway_Status__c',
+        optionsSource: 'kenwayStatusOptions'
+    },
+    lastInteractionDate: {
+        key: 'lastInteractionDate',
+        label: 'Last Interaction Date',
+        type: 'date',
+        editable: false
+    },
+    lastInteractionOrganizer: {
+        key: 'lastInteractionOrganizerName',
+        label: 'Last Interaction Organizer',
+        type: 'text',
+        editable: false
+    },
+    nextPlannedInteraction: {
+        key: 'nextPlannedInteraction',
+        label: 'Next Planned Interaction',
+        type: 'date',
+        editable: false
+    },
+    networkingPriority: {
+        key: 'networkingPriority',
+        label: 'Networking Priority',
+        type: 'select',
+        editable: true,
+        updateField: 'Kenway_s_Priority__c',
+        optionsSource: 'networkingPriorityOptions'
+    },
+    nextSteps: {
+        key: 'nextSteps',
+        label: 'Next Steps',
+        type: 'textarea',
+        editable: true,
+        updateField: 'Next_Steps__c'
+    },
+    networkingNotes: {
+        key: 'networkingNotes',
+        label: 'Networking Notes',
+        type: 'textarea',
+        editable: true,
+        updateField: 'Networking_Notes__c'
+    }
+};
+
+const STANDARD_LIST_COLUMN_KEYS = [
+    'name',
+    'accountName',
+    'title',
+    'networkingPlanAssociation',
+    'mailingCity',
+    'challengerProfile',
+    'networkingOwner',
+    'kenwayStatus',
+    'lastInteractionDate',
+    'lastInteractionOrganizer',
+    'nextPlannedInteraction',
+    'networkingPriority',
+    'nextSteps',
+    'networkingNotes'
+];
+
+const CONTACT_CENTER_COLUMN_KEYS = [
+    'name',
+    'accountName',
+    'title',
+    'mailingCity',
+    'challengerProfile',
+    'networkingOwner',
+    'kenwayStatus',
+    'lastInteractionDate',
+    'lastInteractionOrganizer',
+    'nextPlannedInteraction',
+    'networkingPriority',
+    'nextSteps',
+    'networkingNotes'
+];
+
+const NETWORKING_PLAN_LIST_VIEWS = [
+    {
+        developerName: 'TMT_Networking_Plan',
+        label: 'TMT Networking Plan',
+        whereClause: [
+            '(',
+            "Networking_Plan_Association__c = 'Technology, Media, and Telecommunications'",
+            "OR Account.Industry = 'Telecommunications'",
+            ')',
+            'AND',
+            '(',
+            "Networking_Owner__r.Name LIKE '%Irene%'",
+            "OR Networking_Owner__r.Name LIKE '%Clay%'",
+            "OR Networking_Owner__r.Name LIKE '%Kyle%'",
+            "OR Networking_Owner__r.Name LIKE '%Sarah%'",
+            ')'
+        ].join(' '),
+        orderByClause: 'ORDER BY Name ASC NULLS LAST, Id ASC NULLS LAST',
+        columnKeys: STANDARD_LIST_COLUMN_KEYS
+    },
+    {
+        developerName: 'Healthcare_Networking_Plan',
+        label: 'Healthcare Networking Plan',
+        whereClause: "Networking_Plan_Association__c = 'HealthCare' OR Account.Industry = 'Healthcare'",
+        orderByClause: 'ORDER BY Name ASC NULLS LAST, Id ASC NULLS LAST',
+        columnKeys: STANDARD_LIST_COLUMN_KEYS
+    },
+    {
+        developerName: 'Supply_Chain_Networking_Plan',
+        label: 'Supply Chain Management Networking Plan',
+        whereClause: "Networking_Plan_Association__c = 'Supply Chain Management'",
+        orderByClause: 'ORDER BY Name ASC NULLS LAST, Id ASC NULLS LAST',
+        columnKeys: STANDARD_LIST_COLUMN_KEYS
+    },
+    {
+        developerName: 'Contact_Center_Networking_Plan',
+        label: 'Contact Center Networking Plan',
+        whereClause: "Networking_Plan_Association__c INCLUDES ('Contact Center')",
+        orderByClause: 'ORDER BY Name ASC NULLS LAST, Id ASC NULLS LAST',
+        columnKeys: CONTACT_CENTER_COLUMN_KEYS
+    },
+    {
+        developerName: 'Financial_Services_Networking_Plan',
+        label: 'Financial Services Networking Plan',
+        whereClause: "Networking_Plan_Association__c = 'Financial Services' OR Account.Industry = 'Financial Services'",
+        orderByClause: 'ORDER BY Name ASC NULLS LAST, Id ASC NULLS LAST',
+        columnKeys: STANDARD_LIST_COLUMN_KEYS
+    }
 ];
 
 const cache = {
@@ -94,6 +329,47 @@ function readEnv(name) {
     return value;
 }
 
+function getRequiredEnvNames() {
+    if (AUTH_FLOW === 'password') {
+        return [
+            'SF_LOGIN_URL',
+            'SF_CLIENT_ID',
+            'SF_CLIENT_SECRET',
+            'SF_USERNAME',
+            'SF_PASSWORD',
+            'SF_SECURITY_TOKEN'
+        ];
+    }
+
+    return [
+        'SF_LOGIN_URL',
+        'SF_CLIENT_ID',
+        'SF_CLIENT_SECRET'
+    ];
+}
+
+function getTokenRequestParams() {
+    if (AUTH_FLOW === 'password') {
+        return new URLSearchParams({
+            grant_type: 'password',
+            client_id: readEnv('SF_CLIENT_ID'),
+            client_secret: readEnv('SF_CLIENT_SECRET'),
+            username: readEnv('SF_USERNAME'),
+            password: readEnv('SF_PASSWORD') + readEnv('SF_SECURITY_TOKEN')
+        });
+    }
+
+    if (AUTH_FLOW === 'client_credentials') {
+        return new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: readEnv('SF_CLIENT_ID'),
+            client_secret: readEnv('SF_CLIENT_SECRET')
+        });
+    }
+
+    throw new Error(`Unsupported SF_AUTH_FLOW value: ${AUTH_FLOW}`);
+}
+
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, {
         'Content-Type': 'application/json; charset=utf-8',
@@ -135,13 +411,7 @@ async function getAccessToken(forceRefresh = false) {
         return cache.token;
     }
 
-    const params = new URLSearchParams({
-        grant_type: 'password',
-        client_id: readEnv('SF_CLIENT_ID'),
-        client_secret: readEnv('SF_CLIENT_SECRET'),
-        username: readEnv('SF_USERNAME'),
-        password: readEnv('SF_PASSWORD') + readEnv('SF_SECURITY_TOKEN')
-    });
+    const params = getTokenRequestParams();
 
     const response = await fetch(`${LOGIN_URL}/services/oauth2/token`, {
         method: 'POST',
@@ -153,8 +423,16 @@ async function getAccessToken(forceRefresh = false) {
 
     const payload = await response.json();
     if (!response.ok) {
-        const error = new Error(payload.error_description || 'Salesforce login failed');
+        let message = payload.error_description || payload.error || 'Salesforce login failed';
+        if (AUTH_FLOW === 'password' && payload.error === 'invalid_grant') {
+            message = `${message}. Check SF_USERNAME, SF_PASSWORD, SF_SECURITY_TOKEN, and confirm the Salesforce app allows OAuth Username-Password Flow.`;
+        } else if (AUTH_FLOW === 'client_credentials') {
+            message = `${message}. Check SF_CLIENT_ID, SF_CLIENT_SECRET, SF_LOGIN_URL, and confirm the Salesforce app has Client Credentials Flow enabled with a Run As user.`;
+        }
+
+        const error = new Error(message);
         error.statusCode = 502;
+        error.details = payload;
         throw error;
     }
 
@@ -215,6 +493,13 @@ function normalizeOption(entry) {
     };
 }
 
+function getColumnDefinitions(columnKeys) {
+    return (columnKeys || [])
+        .map((key) => LIST_COLUMN_CATALOG[key])
+        .filter(Boolean)
+        .map((definition) => ({ ...definition }));
+}
+
 function getPicklistFieldMap(describe) {
     const fieldMap = new Map();
     for (const field of describe.fields || []) {
@@ -228,19 +513,33 @@ async function querySalesforce(soql) {
     return salesforceJson(`/services/data/${API_VERSION}/query?q=${encoded}`);
 }
 
+async function getNetworkingPlanListViews() {
+    return NETWORKING_PLAN_LIST_VIEWS.map((listView) => ({ ...listView }));
+}
+
 async function getMetadata(forceRefresh = false) {
     const cacheAge = Date.now() - cache.metadataFetchedAt;
     if (!forceRefresh && cache.metadata && cacheAge < 5 * 60 * 1000) {
         return cache.metadata;
     }
 
-    const describe = await salesforceJson(`/services/data/${API_VERSION}/sobjects/Contact/describe`);
-    const fieldMap = getPicklistFieldMap(describe);
+    const contactDescribe = await salesforceJson(`/services/data/${API_VERSION}/sobjects/Contact/describe`);
+    const contactFieldMap = getPicklistFieldMap(contactDescribe);
+    const accountDescribe = await salesforceJson(`/services/data/${API_VERSION}/sobjects/Account/describe`);
+    const accountFieldMap = getPicklistFieldMap(accountDescribe);
 
     const picklists = {};
     for (const fieldName of PICKLIST_FIELD_NAMES) {
-        const field = fieldMap.get(fieldName);
+        const field = contactFieldMap.get(fieldName);
         picklists[fieldName] = (field?.picklistValues || [])
+            .filter((entry) => entry.active)
+            .map(normalizeOption);
+    }
+
+    const accountPicklists = {};
+    for (const fieldName of ACCOUNT_PICKLIST_FIELD_NAMES) {
+        const field = accountFieldMap.get(fieldName);
+        accountPicklists[fieldName] = (field?.picklistValues || [])
             .filter((entry) => entry.active)
             .map(normalizeOption);
     }
@@ -259,9 +558,13 @@ async function getMetadata(forceRefresh = false) {
         value: record.Id
     }));
 
+    const listViews = await getNetworkingPlanListViews();
+
     cache.metadata = {
         picklists,
-        ownerOptions
+        accountPicklists,
+        ownerOptions,
+        listViews
     };
     cache.metadataFetchedAt = Date.now();
     return cache.metadata;
@@ -277,6 +580,22 @@ function escapeLikeTerm(value) {
         .replace(/_/g, '\\_');
 }
 
+function buildSearchClause(search) {
+    const searchTerm = escapeLikeTerm(search.trim());
+    if (!searchTerm) {
+        return '';
+    }
+
+    return [
+        '(',
+        `Name LIKE '%${searchTerm}%'`,
+        `OR Title LIKE '%${searchTerm}%'`,
+        `OR MailingCity LIKE '%${searchTerm}%'`,
+        `OR Account.Name LIKE '%${searchTerm}%'`,
+        ')'
+    ].join(' ');
+}
+
 function formatContactRow(record) {
     return {
         id: record.Id,
@@ -289,10 +608,12 @@ function formatContactRow(record) {
         networkingOwnerName: record.Networking_Owner__r?.Name || '',
         kenwayStatus: record.Kenway_Status__c || '',
         lastInteractionDate: record.Last_Interaction_Date__c || '',
+        lastInteractionOrganizerName: record.Last_Interaction_Organizer__r?.Name || '',
         nextPlannedInteraction: record.Next_Planned_Interaction__c || '',
         networkingPriority: record.Kenway_s_Priority__c || '',
         nextSteps: record.Next_Steps__c || '',
         networkingNotes: record.Networking_Notes__c || '',
+        networkingNotesShort: record.Networking_Notes_Short__c || '',
         networkingPlanAssociation: record.Networking_Plan_Association__c
             ? record.Networking_Plan_Association__c.split(';').filter(Boolean)
             : [],
@@ -302,52 +623,127 @@ function formatContactRow(record) {
     };
 }
 
-async function getContacts({ vertical, search, limit }) {
+function formatAccountRow(record) {
+    return {
+        id: record.Id,
+        name: record.Name,
+        industry: record.Industry || '',
+        website: record.Website || '',
+        billingCity: record.BillingCity || '',
+        billingState: record.BillingState || '',
+        description: record.Description || '',
+        annualRevenue: record.Annual_Revenue__c || '',
+        targetCompany: record.Target_Company__c || '',
+        vertical: record.Kenway_Vertical__c || ''
+    };
+}
+
+function parsePageSize(pageSize) {
+    const parsed = Number(pageSize);
+    return [10, 25, 50].includes(parsed) ? parsed : 25;
+}
+
+function parsePage(page) {
+    return Math.max(Number(page) || 1, 1);
+}
+
+async function getContacts({ listView, search, page, pageSize }) {
     const metadata = await getMetadata();
-    const verticalValues = new Set(
-        metadata.picklists.Networking_Plan_Association__c.map((option) => option.value)
+    const listViewDefinitions = metadata.listViews || [];
+    const listViewByDeveloperName = new Map(
+        listViewDefinitions.map((definition) => [definition.developerName, definition])
     );
 
-    const size = Math.min(Math.max(Number(limit) || 100, 1), 250);
-    const whereClauses = ["Networking_Plan_Association__c != null"];
+    const size = parsePageSize(pageSize);
+    const requestedPage = parsePage(page);
+    const whereClauses = [];
+    let orderByClause = 'ORDER BY Name ASC NULLS LAST, Id ASC NULLS LAST';
 
-    if (vertical) {
-        if (!verticalValues.has(vertical)) {
-            const error = new Error('Invalid networking plan filter');
+    if (listView) {
+        const definition = listViewByDeveloperName.get(listView);
+        if (!definition) {
+            const error = new Error('Invalid networking plan list');
             error.statusCode = 400;
             throw error;
         }
+        whereClauses.push(`(${definition.whereClause})`);
+        orderByClause = definition.orderByClause || orderByClause;
+    } else {
         whereClauses.push(
-            `Networking_Plan_Association__c INCLUDES ('${escapeSoql(vertical)}')`
+            `(${listViewDefinitions.map((definition) => `(${definition.whereClause})`).join(' OR ')})`
         );
     }
 
-    if (search) {
-        const searchTerm = escapeLikeTerm(search.trim());
-        if (searchTerm) {
-            whereClauses.push(
-                [
-                    '(',
-                    `Name LIKE '%${searchTerm}%'`,
-                    `OR Title LIKE '%${searchTerm}%'`,
-                    `OR MailingCity LIKE '%${searchTerm}%'`,
-                    `OR Account.Name LIKE '%${searchTerm}%'`,
-                    ')'
-                ].join(' ')
-            );
-        }
+    const searchClause = search ? buildSearchClause(search) : '';
+    if (searchClause) {
+        whereClauses.push(searchClause);
     }
+
+    const countSoql = [
+        'SELECT COUNT()',
+        'FROM Contact',
+        `WHERE ${whereClauses.join(' AND ')}`
+    ].join(' ');
+
+    const countResult = await querySalesforce(countSoql);
+    const totalCount = Number(countResult.totalSize || 0);
+    const totalPages = totalCount > 0 ? Math.ceil(totalCount / size) : 1;
+    const currentPage = Math.min(requestedPage, totalPages);
+    const offset = (currentPage - 1) * size;
 
     const soql = [
         `SELECT ${CONTACT_SELECT_FIELDS.join(', ')}`,
         'FROM Contact',
         `WHERE ${whereClauses.join(' AND ')}`,
-        'ORDER BY Account.Name ASC NULLS LAST, Name ASC',
+        orderByClause,
+        `LIMIT ${size}`,
+        offset > 0 ? `OFFSET ${offset}` : ''
+    ].join(' ');
+
+    const result = await querySalesforce(soql);
+    return {
+        records: result.records.map(formatContactRow),
+        count: result.records.length,
+        totalCount,
+        page: currentPage,
+        pageSize: size,
+        totalPages
+    };
+}
+
+async function searchAccounts({ search, limit }) {
+    const searchTerm = (search || '').trim();
+    if (!searchTerm) {
+        return [];
+    }
+
+    const size = Math.min(Math.max(Number(limit) || 10, 1), 20);
+    const soql = [
+        'SELECT Id, Name, Industry, Kenway_Vertical__c',
+        'FROM Account',
+        `WHERE Name LIKE '%${escapeLikeTerm(searchTerm)}%'`,
+        'ORDER BY Name ASC NULLS LAST',
         `LIMIT ${size}`
     ].join(' ');
 
     const result = await querySalesforce(soql);
-    return result.records.map(formatContactRow);
+    return result.records.map(formatAccountRow);
+}
+
+async function assertAccountExists(accountId) {
+    const soql = [
+        'SELECT Id',
+        'FROM Account',
+        `WHERE Id = '${escapeSoql(accountId)}'`,
+        'LIMIT 1'
+    ].join(' ');
+
+    const result = await querySalesforce(soql);
+    if (!result.records.length) {
+        const error = new Error('Selected company was not found');
+        error.statusCode = 400;
+        throw error;
+    }
 }
 
 async function getContactById(contactId) {
@@ -365,6 +761,23 @@ async function getContactById(contactId) {
         throw error;
     }
     return formatContactRow(result.records[0]);
+}
+
+async function getAccountById(accountId) {
+    const soql = [
+        `SELECT ${ACCOUNT_SELECT_FIELDS.join(', ')}`,
+        'FROM Account',
+        `WHERE Id = '${escapeSoql(accountId)}'`,
+        'LIMIT 1'
+    ].join(' ');
+
+    const result = await querySalesforce(soql);
+    if (!result.records.length) {
+        const error = new Error('Company not found');
+        error.statusCode = 404;
+        throw error;
+    }
+    return formatAccountRow(result.records[0]);
 }
 
 function validateSingleValue(fieldName, value, allowedValues) {
@@ -457,6 +870,141 @@ async function sanitizeContactUpdate(payload) {
     return cleaned;
 }
 
+async function sanitizeContactCreate(payload) {
+    const metadata = await getMetadata();
+    const picklistSets = {
+        Networking_Plan_Association__c: new Set(
+            metadata.picklists.Networking_Plan_Association__c.map((option) => option.value)
+        ),
+        Challenger_Profile__c: new Set(
+            metadata.picklists.Challenger_Profile__c.map((option) => option.value)
+        ),
+        Kenway_Status__c: new Set(
+            metadata.picklists.Kenway_Status__c.map((option) => option.value)
+        ),
+        Kenway_s_Priority__c: new Set(
+            metadata.picklists.Kenway_s_Priority__c.map((option) => option.value)
+        )
+    };
+    const ownerIds = new Set(metadata.ownerOptions.map((option) => option.value));
+    const cleaned = {};
+
+    for (const [fieldName, rawValue] of Object.entries(payload || {})) {
+        if (!CREATEABLE_FIELDS.has(fieldName)) {
+            continue;
+        }
+
+        switch (fieldName) {
+            case 'FirstName':
+            case 'Title':
+            case 'MailingCity':
+            case 'Next_Steps__c':
+            case 'Networking_Notes__c':
+                cleaned[fieldName] = rawValue == null ? '' : String(rawValue).trim();
+                break;
+            case 'LastName':
+                cleaned[fieldName] = rawValue == null ? '' : String(rawValue).trim();
+                if (!cleaned[fieldName]) {
+                    const error = new Error('Last Name is required');
+                    error.statusCode = 400;
+                    throw error;
+                }
+                break;
+            case 'AccountId':
+                cleaned[fieldName] = rawValue ? String(rawValue).trim() : '';
+                if (!cleaned[fieldName]) {
+                    const error = new Error('Company is required');
+                    error.statusCode = 400;
+                    throw error;
+                }
+                await assertAccountExists(cleaned[fieldName]);
+                break;
+            case 'Active__c':
+                cleaned[fieldName] = rawValue === undefined ? true : Boolean(rawValue);
+                break;
+            case 'Networking_Owner__c':
+                cleaned[fieldName] = validateSingleValue(fieldName, rawValue, ownerIds);
+                break;
+            case 'Challenger_Profile__c':
+            case 'Kenway_Status__c':
+            case 'Kenway_s_Priority__c':
+                cleaned[fieldName] = validateSingleValue(fieldName, rawValue, picklistSets[fieldName]);
+                break;
+            case 'Networking_Plan_Association__c':
+                cleaned[fieldName] = validateMultiValue(fieldName, rawValue, picklistSets[fieldName]);
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (!cleaned.LastName) {
+        const error = new Error('Last Name is required');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (!cleaned.AccountId) {
+        const error = new Error('Company is required');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(cleaned, 'Active__c')) {
+        cleaned.Active__c = true;
+    }
+
+    return cleaned;
+}
+
+async function sanitizeAccountCreate(payload) {
+    const metadata = await getMetadata();
+    const picklistSets = {
+        Industry: new Set(metadata.accountPicklists.Industry.map((option) => option.value)),
+        Annual_Revenue__c: new Set(metadata.accountPicklists.Annual_Revenue__c.map((option) => option.value)),
+        Target_Company__c: new Set(metadata.accountPicklists.Target_Company__c.map((option) => option.value))
+    };
+    const cleaned = {};
+
+    for (const [fieldName, rawValue] of Object.entries(payload || {})) {
+        if (!ACCOUNT_CREATEABLE_FIELDS.has(fieldName)) {
+            continue;
+        }
+
+        switch (fieldName) {
+            case 'Name':
+                cleaned[fieldName] = rawValue == null ? '' : String(rawValue).trim();
+                if (!cleaned[fieldName]) {
+                    const error = new Error('Company Name is required');
+                    error.statusCode = 400;
+                    throw error;
+                }
+                break;
+            case 'Website':
+            case 'BillingCity':
+            case 'BillingState':
+            case 'Description':
+                cleaned[fieldName] = rawValue == null ? '' : String(rawValue).trim();
+                break;
+            case 'Industry':
+            case 'Annual_Revenue__c':
+            case 'Target_Company__c':
+                cleaned[fieldName] = validateSingleValue(fieldName, rawValue, picklistSets[fieldName]);
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (!cleaned.Name) {
+        const error = new Error('Company Name is required');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    return cleaned;
+}
+
 async function updateContact(contactId, payload) {
     const fields = await sanitizeContactUpdate(payload);
     await salesforceJson(`/services/data/${API_VERSION}/sobjects/Contact/${contactId}`, {
@@ -468,6 +1016,32 @@ async function updateContact(contactId, payload) {
     });
 
     return getContactById(contactId);
+}
+
+async function createContact(payload) {
+    const fields = await sanitizeContactCreate(payload);
+    const response = await salesforceJson(`/services/data/${API_VERSION}/sobjects/Contact`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(fields)
+    });
+
+    return getContactById(response.id);
+}
+
+async function createAccount(payload) {
+    const fields = await sanitizeAccountCreate(payload);
+    const response = await salesforceJson(`/services/data/${API_VERSION}/sobjects/Account`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(fields)
+    });
+
+    return getAccountById(response.id);
 }
 
 function getContentType(filePath) {
@@ -508,32 +1082,44 @@ async function serveStatic(req, res, pathname) {
 }
 
 function buildBootstrapPayload(metadata) {
+    const listViewColumns = Object.fromEntries(
+        metadata.listViews.map((view) => [
+            view.developerName,
+            getColumnDefinitions(view.columnKeys)
+        ])
+    );
+
     return {
         filters: {
-            verticalOptions: metadata.picklists.Networking_Plan_Association__c
+            listViewOptions: metadata.listViews.map((view) => ({
+                label: view.label,
+                value: view.developerName
+            }))
+        },
+        columns: {
+            default: getColumnDefinitions(STANDARD_LIST_COLUMN_KEYS),
+            byListView: listViewColumns
         },
         fields: {
             planAssociationOptions: metadata.picklists.Networking_Plan_Association__c,
             challengerProfileOptions: metadata.picklists.Challenger_Profile__c,
             kenwayStatusOptions: metadata.picklists.Kenway_Status__c,
             networkingPriorityOptions: metadata.picklists.Kenway_s_Priority__c,
-            ownerOptions: metadata.ownerOptions
+            ownerOptions: metadata.ownerOptions,
+            accountIndustryOptions: metadata.accountPicklists.Industry,
+            accountAnnualRevenueOptions: metadata.accountPicklists.Annual_Revenue__c,
+            accountTargetCompanyOptions: metadata.accountPicklists.Target_Company__c
         }
     };
 }
 
 async function routeApi(req, res, pathname, searchParams) {
     if (req.method === 'GET' && pathname === '/api/health') {
-        const requiredEnv = [
-            'SF_CLIENT_ID',
-            'SF_CLIENT_SECRET',
-            'SF_USERNAME',
-            'SF_PASSWORD',
-            'SF_SECURITY_TOKEN'
-        ];
+        const requiredEnv = getRequiredEnvNames();
         const missing = requiredEnv.filter((name) => !process.env[name]);
         sendJson(res, 200, {
             ok: true,
+            authFlow: AUTH_FLOW,
             configComplete: missing.length === 0,
             missing
         });
@@ -548,14 +1134,35 @@ async function routeApi(req, res, pathname, searchParams) {
 
     if (req.method === 'GET' && pathname === '/api/contacts') {
         const contacts = await getContacts({
-            vertical: searchParams.get('vertical') || '',
+            listView: searchParams.get('listView') || '',
             search: searchParams.get('search') || '',
-            limit: searchParams.get('limit') || 100
+            page: searchParams.get('page') || 1,
+            pageSize: searchParams.get('pageSize') || 25
         });
-        sendJson(res, 200, {
-            records: contacts,
-            count: contacts.length
+        sendJson(res, 200, contacts);
+        return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/accounts') {
+        const accounts = await searchAccounts({
+            search: searchParams.get('search') || '',
+            limit: searchParams.get('limit') || 10
         });
+        sendJson(res, 200, { records: accounts });
+        return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/accounts') {
+        const body = await readRequestBody(req);
+        const record = await createAccount(body);
+        sendJson(res, 201, { record });
+        return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/contacts') {
+        const body = await readRequestBody(req);
+        const record = await createContact(body);
+        sendJson(res, 201, { record });
         return;
     }
 
@@ -594,6 +1201,36 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(PORT, () => {
-    console.log(`Standalone networking plan app running at http://localhost:${PORT}`);
-});
+function startServer(port = PORT) {
+    return new Promise((resolve, reject) => {
+        const handleError = (error) => {
+            server.off('listening', handleListening);
+            reject(error);
+        };
+
+        const handleListening = () => {
+            server.off('error', handleError);
+            resolve(server);
+        };
+
+        server.once('error', handleError);
+        server.once('listening', handleListening);
+        server.listen(port);
+    });
+}
+
+if (require.main === module) {
+    startServer()
+        .then(() => {
+            console.log(`Standalone networking plan app running at http://localhost:${PORT}`);
+        })
+        .catch((error) => {
+            console.error(error.stack || String(error));
+            process.exit(1);
+        });
+}
+
+module.exports = {
+    server,
+    startServer
+};

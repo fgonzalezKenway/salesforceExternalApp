@@ -3,161 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Networking Plan Workspace</title>
+    <title>Kenway Networking Plan Workspace</title>
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
     <div class="page-shell">
-        <header class="hero">
-            <div class="hero-copy">
-                <p class="eyebrow">Standalone Workspace</p>
-                <h1>Networking plans, outside Salesforce.</h1>
-                <p class="hero-text">
-                    This site reads and updates networking-plan Contacts through a server-side integration user,
-                    so your end users can manage the plans without logging into Salesforce.
-                </p>
-            </div>
-            <div class="hero-status">
-                <div class="status-card">
-                    <span class="status-label">Server Status</span>
-                    <strong id="healthStatus">Checking connection...</strong>
-                </div>
-                <div class="status-card">
-                    <span class="status-label">Visible Contacts</span>
-                    <strong id="resultCount">0</strong>
-                </div>
-            </div>
+        <header class="site-header">
+            <a class="brand-lockup" href="https://www.kenwayconsulting.com/" target="_blank" rel="noreferrer">
+                <img class="brand-logo" src="/assets/brand/kenway-logo.png" alt="Kenway Consulting">
+            </a>
+            <nav class="top-tabs" aria-label="Workspace tabs">
+                <button id="plansTab" class="top-tab is-active" data-view="plans" type="button">Networking Plans</button>
+                <button id="addContactTab" class="top-tab" data-view="add-contact" type="button">Add Contact</button>
+                <button id="addAccountTab" class="top-tab" data-view="add-account" type="button">Add Company</button>
+            </nav>
         </header>
 
         <main class="workspace">
-            <section class="list-panel panel">
-                <div class="panel-header">
-                    <div>
-                        <p class="section-label">Plan Filters</p>
-                        <h2>Contact list</h2>
+            <section id="plansView" class="view-panel">
+                <section class="list-panel panel">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <p class="section-label">Relationship Portfolio</p>
+                            <div class="panel-title-row">
+                                <h2>Networking Plans</h2>
+                                <span id="resultCount" class="title-count">0 contacts</span>
+                            </div>
+                        </div>
+                        <button id="refreshButton" class="ghost-button" type="button">Refresh</button>
                     </div>
-                    <button id="refreshButton" class="ghost-button" type="button">Refresh</button>
-                </div>
 
-                <div class="filter-grid">
-                    <label class="field">
-                        <span>Networking Plan</span>
-                        <select id="verticalFilter"></select>
-                    </label>
-                    <label class="field field-search">
-                        <span>Search</span>
-                        <input id="searchInput" type="search" placeholder="Name, account, title, city">
-                    </label>
-                </div>
+                    <div class="filter-grid">
+                        <label class="field">
+                            <span>Networking Plan List</span>
+                            <select id="verticalFilter"></select>
+                        </label>
+                        <label class="field field-search">
+                            <span>Search</span>
+                            <input id="searchInput" type="search" placeholder="Name, company, title, city">
+                        </label>
+                        <label class="field field-page-size">
+                            <span>Contacts Per Page</span>
+                            <select id="pageSizeSelect">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </label>
+                    </div>
 
-                <div id="messageBar" class="message-bar hidden" role="status"></div>
+                    <div class="list-meta">
+                        <p class="list-help">
+                            Edit directly in the grid and save each row in place. The visible columns mirror the selected Salesforce networking plan list.
+                        </p>
+                        <span id="pageSummary" class="page-summary">Showing 0 of 0 contacts</span>
+                    </div>
 
-                <div class="table-wrap">
-                    <table class="contact-table">
-                        <thead>
-                            <tr>
-                                <th>Contact</th>
-                                <th>Account</th>
-                                <th>Account Vertical</th>
-                                <th>Owner</th>
-                                <th>Status</th>
-                                <th>Next Interaction</th>
-                                <th>Last Interaction</th>
-                            </tr>
-                        </thead>
-                        <tbody id="contactTableBody">
-                            <tr>
-                                <td colspan="7" class="empty-state-cell">Loading contacts...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                    <div id="messageBar" class="message-bar hidden" role="status"></div>
+
+                    <div class="table-wrap">
+                        <div class="table-scroll-y">
+                            <table class="contact-table">
+                                <thead id="contactTableHead"></thead>
+                                <tbody id="contactTableBody">
+                                    <tr>
+                                        <td colspan="1" class="empty-state-cell">Loading contacts...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="floatingScrollbar" class="floating-scrollbar hidden" aria-hidden="true">
+                        <div id="floatingScrollbarContent" class="floating-scrollbar-content"></div>
+                    </div>
+
+                    <div class="table-footer">
+                        <div class="pagination-controls">
+                            <button id="prevPageButton" class="ghost-button compact-button" type="button">Previous</button>
+                            <span id="paginationStatus" class="pagination-status">Page 1 of 1</span>
+                            <button id="nextPageButton" class="ghost-button compact-button" type="button">Next</button>
+                        </div>
+                        <button id="saveAllButton" class="primary-button" type="button">Save All Changes</button>
+                    </div>
+                </section>
             </section>
 
-            <section class="editor-panel panel">
-                <div class="panel-header">
-                    <div>
-                        <p class="section-label">Contact Editor</p>
-                        <h2 id="editorTitle">Select a contact</h2>
-                    </div>
-                    <div class="editor-actions">
-                        <button id="resetButton" class="ghost-button" type="button" disabled>Reset</button>
-                        <button id="saveButton" class="primary-button" type="button" disabled>Save Changes</button>
-                    </div>
-                </div>
-
-                <form id="editorForm" class="editor-form">
-                    <div class="editor-placeholder" id="editorPlaceholder">
-                        Choose a contact from the list to review and edit the networking-plan fields.
-                    </div>
-
-                    <div id="editorFields" class="editor-fields hidden">
-                        <div class="read-only-grid">
-                            <div class="read-only-card">
-                                <span>Account</span>
-                                <strong id="readOnlyAccount">-</strong>
-                            </div>
-                            <div class="read-only-card">
-                                <span>Account Vertical</span>
-                                <strong id="readOnlyVertical">-</strong>
-                            </div>
-                            <div class="read-only-card">
-                                <span>Last Interaction</span>
-                                <strong id="readOnlyLastInteraction">-</strong>
+            <section id="addContactView" class="view-panel hidden">
+                <section class="panel add-contact-panel">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <p class="section-label">Create Contact</p>
+                            <div class="panel-title-row">
+                                <h2>Add Contact</h2>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="form-grid">
+                    <p class="list-help">
+                        Add a new Salesforce contact, link it to an existing company, and pre-populate the networking plan fields your team maintains in this workspace.
+                    </p>
+
+                    <div id="createMessageBar" class="message-bar hidden" role="status"></div>
+
+                    <form id="createContactForm" class="create-contact-form">
+                        <div class="contact-form-grid">
+                            <label class="field">
+                                <span>First Name</span>
+                                <input id="createFirstName" type="text" autocomplete="given-name">
+                            </label>
+
+                            <label class="field">
+                                <span>Last Name</span>
+                                <input id="createLastName" type="text" autocomplete="family-name" required>
+                            </label>
+
+                            <div class="field field-span-2">
+                                <span>Company</span>
+                                <input id="accountSearchInput" type="search" placeholder="Search company by name" autocomplete="off">
+                                <div id="selectedAccount" class="selected-account hidden"></div>
+                                <div id="accountSearchResults" class="search-results hidden"></div>
+                            </div>
+
                             <label class="field">
                                 <span>Title</span>
-                                <input name="Title" type="text">
+                                <input id="createTitle" type="text">
                             </label>
+
                             <label class="field">
-                                <span>City</span>
-                                <input name="MailingCity" type="text">
+                                <span>Mailing City</span>
+                                <input id="createMailingCity" type="text">
                             </label>
+
+                            <label class="field">
+                                <span>Networking Owner</span>
+                                <select id="createNetworkingOwner"></select>
+                            </label>
+
                             <label class="field">
                                 <span>Relationship Status</span>
-                                <select name="Kenway_Status__c" data-options-source="kenwayStatusOptions"></select>
+                                <select id="createKenwayStatus"></select>
                             </label>
+
                             <label class="field">
                                 <span>Challenger Profile</span>
-                                <select name="Challenger_Profile__c" data-options-source="challengerProfileOptions"></select>
+                                <select id="createChallengerProfile"></select>
                             </label>
-                            <label class="field">
-                                <span>Relationship Owner</span>
-                                <select name="Networking_Owner__c" data-options-source="ownerOptions"></select>
-                            </label>
+
                             <label class="field">
                                 <span>Networking Priority</span>
-                                <select name="Kenway_s_Priority__c" data-options-source="networkingPriorityOptions"></select>
+                                <select id="createNetworkingPriority"></select>
                             </label>
-                            <label class="field">
-                                <span>Next Planned Interaction</span>
-                                <input name="Next_Planned_Interaction__c" type="date">
-                            </label>
-                            <label class="field checkbox-field">
+
+                            <label class="field field-checkbox">
                                 <span>Active</span>
-                                <input name="Active__c" type="checkbox">
+                                <input id="createActive" type="checkbox" checked>
+                            </label>
+
+                            <label class="field field-span-2">
+                                <span>Networking Plan Association</span>
+                                <select id="createPlanAssociation" multiple size="6"></select>
+                            </label>
+
+                            <label class="field field-span-2">
+                                <span>Next Steps</span>
+                                <textarea id="createNextSteps" rows="3"></textarea>
+                            </label>
+
+                            <label class="field field-span-2">
+                                <span>Networking Notes</span>
+                                <textarea id="createNetworkingNotes" rows="4"></textarea>
                             </label>
                         </div>
 
-                        <label class="field field-full">
-                            <span>Networking Plan Associations</span>
-                            <select name="Networking_Plan_Association__c" data-options-source="planAssociationOptions" multiple size="6"></select>
-                        </label>
+                        <div class="form-actions">
+                            <button id="createSubmitButton" class="primary-button" type="submit">Create Contact</button>
+                            <button id="createClearButton" class="ghost-button" type="button">Clear Form</button>
+                        </div>
+                    </form>
+                </section>
+            </section>
 
-                        <label class="field field-full">
-                            <span>Next Steps</span>
-                            <textarea name="Next_Steps__c" rows="4"></textarea>
-                        </label>
-
-                        <label class="field field-full">
-                            <span>Networking Notes</span>
-                            <textarea name="Networking_Notes__c" rows="8"></textarea>
-                        </label>
+            <section id="addAccountView" class="view-panel hidden">
+                <section class="panel add-account-panel">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <p class="section-label">Create Company</p>
+                            <div class="panel-title-row">
+                                <h2>Add Company</h2>
+                            </div>
+                        </div>
                     </div>
-                </form>
+
+                    <p class="list-help">
+                        Add a new Salesforce company for future networking plan contacts. Industry, annual revenue, and target company values come from this sandbox, while Kenway Vertical is calculated by Salesforce after the company is created.
+                    </p>
+
+                    <div id="createAccountMessageBar" class="message-bar hidden" role="status"></div>
+
+                    <form id="createAccountForm" class="create-contact-form">
+                        <div class="contact-form-grid">
+                            <label class="field">
+                                <span>Company Name</span>
+                                <input id="createAccountName" type="text" autocomplete="organization" required>
+                            </label>
+
+                            <label class="field">
+                                <span>Industry</span>
+                                <select id="createAccountIndustry"></select>
+                            </label>
+
+                            <label class="field">
+                                <span>Annual Revenue</span>
+                                <select id="createAccountAnnualRevenue"></select>
+                            </label>
+
+                            <label class="field">
+                                <span>Target Company?</span>
+                                <select id="createAccountTargetCompany"></select>
+                            </label>
+
+                            <label class="field">
+                                <span>Website</span>
+                                <input id="createAccountWebsite" type="url" placeholder="https://example.com">
+                            </label>
+
+                            <label class="field">
+                                <span>Billing City</span>
+                                <input id="createAccountBillingCity" type="text">
+                            </label>
+
+                            <label class="field">
+                                <span>Billing State/Province</span>
+                                <input id="createAccountBillingState" type="text">
+                            </label>
+
+                            <label class="field field-span-2">
+                                <span>Company Description</span>
+                                <textarea id="createAccountDescription" rows="4"></textarea>
+                            </label>
+                        </div>
+
+                        <div class="form-actions">
+                            <button id="createAccountSubmitButton" class="primary-button" type="submit">Create Company</button>
+                            <button id="createAccountClearButton" class="ghost-button" type="button">Clear Form</button>
+                        </div>
+                    </form>
+                </section>
             </section>
         </main>
     </div>

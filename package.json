@@ -1,12 +1,14 @@
 {
-  "name": "standalone-networking-plan",
+  "name": "salesforce-external-app",
   "private": true,
   "version": "1.0.0",
   "description": "Standalone networking plan viewer/editor backed by Salesforce REST APIs",
   "scripts": {
     "start": "node server.js",
     "check:server": "node --check server.js",
-    "check:client": "node --check public/app.js"
+    "check:client": "node --check public/app.js",
+    "smoke": "node scripts/ci-smoke.js",
+    "validate": "npm run check:server && npm run check:client && npm run smoke"
   },
   "engines": {
     "node": ">=18"

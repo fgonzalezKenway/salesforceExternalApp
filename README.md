@@ -1,83 +1,85 @@
-# Standalone Networking Plan App
+# Salesforce External App
 
-This is a small standalone web app that reads and updates networking-plan Contacts from Salesforce by using a server-side integration user. The browser never receives Salesforce credentials.
+This repo contains the standalone networking-plan application that runs outside Salesforce while securely reading and updating Salesforce data through a server-side integration layer.
 
-## What it does
+## Architecture
 
-- Shows Contacts that belong to networking plans
-- Filters by `Networking_Plan_Association__c`
-- Shows the related Account and Account vertical
-- Lets users edit and save the key networking-plan fields
-- Uses the Salesforce REST API through a server-side proxy
+- `server.js`: Node.js server and Salesforce REST proxy
+- `public/`: browser UI for networking plans, contact creation, and company creation
+- `.github/workflows/`: CI and Azure deployment workflows
+- `infra/`: starter Azure App Service infrastructure template
+- `docs/ci-cd.md`: branch model, deployment flow, and Azure setup guidance
 
-## Why this architecture
+Because this app lives outside Salesforce, the browser never receives Salesforce credentials. All Salesforce access stays on the server.
 
-Because this app lives outside Salesforce, the integration user credentials must stay on the server. A static-only site would expose secrets in the browser, so this project uses:
+## Local development
 
-- `server.js` for Salesforce auth and REST calls
-- `public/` for the standalone website UI
+1. Copy `.env.example` to `.env`
+2. Fill in your Salesforce app and integration values
+3. Run:
 
-## Environment variables
+```bash
+npm ci
+npm start
+```
 
-Copy `.env.example` to `.env` and fill in your connected-app and integration-user values.
+Then open `http://localhost:3001`.
 
-Required values:
+## Required environment variables
 
+- `SF_AUTH_FLOW`
 - `SF_LOGIN_URL`
 - `SF_CLIENT_ID`
 - `SF_CLIENT_SECRET`
-- `SF_USERNAME`
-- `SF_PASSWORD`
-- `SF_SECURITY_TOKEN`
 
 Optional values:
 
 - `PORT`
 - `SF_API_VERSION`
+- `SF_USERNAME`
+- `SF_PASSWORD`
+- `SF_SECURITY_TOKEN`
 
-## Run locally
+## Validation scripts
 
-```bash
-cd standalone-networking-plan
-node server.js
-```
+- `npm run check:server`
+- `npm run check:client`
+- `npm run smoke`
+- `npm run validate`
 
-Then open `http://localhost:3001`.
+## Salesforce auth notes
 
-## Connected app notes
+This app defaults to the OAuth `client_credentials` flow, which is the recommended path for server-to-server integrations.
 
-This implementation uses the OAuth username-password flow because it is simple for an integration-user-backed internal tool. In production, a JWT bearer flow is usually a better long-term option.
+For `client_credentials`:
 
-The connected app should allow API access and the integration user should be able to:
+- set `SF_AUTH_FLOW=client_credentials`
+- set `SF_LOGIN_URL` to your Salesforce My Domain URL
+- enable Client Credentials Flow on the Salesforce external client app
+- configure a Run As integration user
 
-- Query `Contact`
-- Query `Employee__c`
-- Update the networking-plan Contact fields
+For the legacy password flow:
 
-## Editable fields
+- set `SF_AUTH_FLOW=password`
+- provide `SF_USERNAME`
+- provide `SF_PASSWORD`
+- provide `SF_SECURITY_TOKEN`
 
-The server intentionally allowlists updates to only these Contact fields:
+## CI/CD
 
-- `Title`
-- `MailingCity`
-- `Active__c`
-- `Challenger_Profile__c`
-- `Networking_Owner__c`
-- `Kenway_Status__c`
-- `Next_Planned_Interaction__c`
-- `Kenway_s_Priority__c`
-- `Next_Steps__c`
-- `Networking_Notes__c`
-- `Networking_Plan_Association__c`
+The repo is prepared for this environment flow:
 
-## API endpoints
+- `dev`: local development branch
+- `uat`: auto-deploys to Azure UAT
+- `prod`: auto-deploys to Azure PROD
 
-- `GET /api/health`
-- `GET /api/bootstrap`
-- `GET /api/contacts`
-- `PATCH /api/contacts/:id`
+See [docs/ci-cd.md](docs/ci-cd.md) for the full setup and promotion model.
+
+## Infrastructure
+
+A starter Azure App Service Bicep template is included at [infra/appservice.bicep](infra/appservice.bicep).
 
 ## Notes
 
-- `Last_Interaction_Date__c` is treated as read-only because it is a rollup summary field.
-- `Networking_Notes__c` is stored as plain text from the editor even though the Salesforce field type is HTML.
+- `Last_Interaction_Date__c` is treated as read-only because it is a rollup summary field
+- `Networking_Notes__c` is stored as plain text from the editor even though the Salesforce field type is HTML
