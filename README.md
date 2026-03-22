@@ -71,7 +71,7 @@ The repo is prepared for this environment flow:
 
 - `dev`: local development branch
 - `uat`: auto-deploys to Azure UAT
-- `prod`: auto-deploys to Azure PROD
+- `main`: production branch that auto-deploys to Azure PROD
 
 See [docs/ci-cd.md](docs/ci-cd.md) for the full setup and promotion model.
 

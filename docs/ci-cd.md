@@ -4,7 +4,7 @@
 
 - `dev`: active development branch used for local work against the Salesforce dev sandbox
 - `uat`: promotion branch that deploys automatically to the Azure UAT application
-- `prod`: promotion branch that deploys automatically to the Azure production application
+- `main`: production branch that deploys automatically to the Azure production application
 
 Recommended promotion flow:
 
@@ -12,7 +12,7 @@ Recommended promotion flow:
 2. Merge approved changes into `dev`
 3. Promote `dev` to `uat` through a pull request
 4. Validate the deployed UAT app
-5. Promote `uat` to `prod` through a pull request
+5. Promote `uat` to `main` through a pull request
 
 ## Recommended hosting approach
 
@@ -41,11 +41,11 @@ This gives UAT and PROD separate URLs, separate app settings, and separate deplo
 ## GitHub Actions in this repo
 
 - `.github/workflows/ci.yml`
-  - runs on push and pull request for `dev`, `uat`, and `prod`
+  - runs on push and pull request for `dev`, `uat`, and `main`
   - checks server syntax, client syntax, and starts the app for a smoke test
 - `.github/workflows/deploy-azure.yml`
   - deploys `uat` branch to the GitHub environment named `uat`
-  - deploys `prod` branch to the GitHub environment named `prod`
+  - deploys `main` branch to the GitHub environment named `prod`
 
 ## GitHub environment setup
 
@@ -77,7 +77,7 @@ Recommended environment protection:
 
 - require approval before deploying to `prod`
 - optionally require approval before deploying to `uat`
-- protect `uat` and `prod` branches in GitHub
+- protect `uat` and `main` branches in GitHub
 
 ## Azure setup
 

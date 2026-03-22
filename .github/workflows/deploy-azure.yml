@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - uat
-      - prod
+      - main
 
 permissions:
   contents: read
@@ -49,7 +49,7 @@ jobs:
           package: .
 
   deploy-prod:
-    if: github.ref_name == 'prod'
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     environment: prod
     concurrency:
