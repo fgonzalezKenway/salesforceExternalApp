@@ -243,7 +243,7 @@ const NETWORKING_PLAN_LIST_VIEWS = [
         label: 'TMT Networking Plan',
         whereClause: [
             '(',
-            "Networking_Plan_Association__c = 'Technology, Media, and Telecommunications'",
+            "Networking_Plan_Association__c INCLUDES ('Technology, Media, and Telecommunications')",
             "OR Account.Industry = 'Telecommunications'",
             ')',
             'AND',
