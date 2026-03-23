@@ -83,7 +83,7 @@ Recommended environment protection:
 
 For each Azure Web App:
 
-1. Create a Linux Web App with Node.js `20 LTS`
+1. Create a Linux Web App with Node.js `24 LTS`
 2. Configure App Service application settings for:
    - `SF_AUTH_FLOW`
    - `SF_LOGIN_URL`

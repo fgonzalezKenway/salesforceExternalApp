@@ -20,7 +20,7 @@ param webAppName string
 param skuName string = 'S1'
 
 @description('Node.js runtime version for the web app.')
-param nodeVersion string = '20-lts'
+param nodeVersion string = '24-lts'
 
 @description('Optional app settings to inject during provisioning.')
 param appSettings array = []
