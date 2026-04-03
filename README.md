@@ -35,6 +35,8 @@ Then open `http://localhost:3001`.
 Optional values:
 
 - `PORT`
+- `APP_SERVICE_AUTH_REQUIRED`
+- `APP_SERVICE_AUTH_ALLOWED_IDPS`
 - `SF_API_VERSION`
 - `SF_USERNAME`
 - `SF_PASSWORD`
@@ -74,6 +76,20 @@ The repo is prepared for this environment flow:
 - `main`: production branch that auto-deploys to Azure PROD
 
 See [docs/ci-cd.md](docs/ci-cd.md) for the full setup and promotion model.
+
+## Microsoft Entra SSO on Azure
+
+For Kenway employees, the recommended access model is Azure App Service Authentication with Microsoft Entra ID.
+
+- use `Workforce configuration`
+- use `Current tenant - Single tenant`
+- require authentication in the App Service authentication settings
+- set `APP_SERVICE_AUTH_REQUIRED=true` in Azure for UAT and PROD
+- keep `APP_SERVICE_AUTH_REQUIRED=false` locally so developers can continue using `http://localhost:3001`
+
+For tighter access control, set the Enterprise Application property `Assignment required` to `Yes` and assign only the Entra security group that should use the app.
+
+This app includes a lightweight server-side check for the App Service authentication headers as defense in depth, but Azure App Service Authentication remains the primary control.
 
 ## Infrastructure
 

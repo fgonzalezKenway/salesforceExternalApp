@@ -10,11 +10,19 @@ const PORT = Number(process.env.PORT || 3001);
 const API_VERSION = process.env.SF_API_VERSION || 'v66.0';
 const AUTH_FLOW = (process.env.SF_AUTH_FLOW || 'client_credentials').toLowerCase();
 const LOGIN_URL = process.env.SF_LOGIN_URL || 'https://login.salesforce.com';
+const APP_SERVICE_AUTH_REQUIRED = parseBoolean(process.env.APP_SERVICE_AUTH_REQUIRED || 'false');
+const APP_SERVICE_AUTH_ALLOWED_IDPS = new Set(
+    (process.env.APP_SERVICE_AUTH_ALLOWED_IDPS || 'aad')
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+);
 
 const CONTACT_SELECT_FIELDS = [
     'Id',
     'Name',
     'Title',
+    'Email',
     'MailingCity',
     'Active__c',
     'Challenger_Profile__c',
@@ -50,6 +58,7 @@ const ACCOUNT_SELECT_FIELDS = [
 
 const UPDATEABLE_FIELDS = new Set([
     'Title',
+    'Email',
     'MailingCity',
     'Active__c',
     'Challenger_Profile__c',
@@ -130,6 +139,13 @@ const LIST_COLUMN_CATALOG = {
         updateField: 'Networking_Plan_Association__c',
         optionsSource: 'planAssociationOptions'
     },
+    email: {
+        key: 'email',
+        label: 'Email',
+        type: 'text',
+        editable: true,
+        updateField: 'Email'
+    },
     mailingCity: {
         key: 'mailingCity',
         label: 'Mailing City',
@@ -209,6 +225,7 @@ const STANDARD_LIST_COLUMN_KEYS = [
     'accountName',
     'title',
     'networkingPlanAssociation',
+    'email',
     'mailingCity',
     'challengerProfile',
     'networkingOwner',
@@ -225,6 +242,7 @@ const CONTACT_CENTER_COLUMN_KEYS = [
     'name',
     'accountName',
     'title',
+    'email',
     'mailingCity',
     'challengerProfile',
     'networkingOwner',
@@ -376,6 +394,96 @@ function sendJson(res, statusCode, payload) {
         'Cache-Control': 'no-store'
     });
     res.end(JSON.stringify(payload));
+}
+
+function parseBoolean(value) {
+    return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
+}
+
+function readHeader(req, headerName) {
+    const value = req.headers[headerName];
+    if (Array.isArray(value)) {
+        return value[0] || '';
+    }
+    return value || '';
+}
+
+function decodeClientPrincipal(encodedHeader) {
+    if (!encodedHeader) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(Buffer.from(encodedHeader, 'base64').toString('utf8'));
+    } catch {
+        return null;
+    }
+}
+
+function getPrincipalClaimValue(principal, claimTypes) {
+    if (!principal?.claims?.length) {
+        return '';
+    }
+
+    for (const claimType of claimTypes) {
+        const match = principal.claims.find((claim) => claim.typ === claimType && claim.val);
+        if (match?.val) {
+            return match.val;
+        }
+    }
+
+    return '';
+}
+
+function getAuthenticatedPrincipal(req) {
+    const principalHeader = readHeader(req, 'x-ms-client-principal');
+    const decodedPrincipal = decodeClientPrincipal(principalHeader);
+    const id = readHeader(req, 'x-ms-client-principal-id')
+        || getPrincipalClaimValue(decodedPrincipal, [
+            'http://schemas.microsoft.com/identity/claims/objectidentifier',
+            'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+            'oid',
+            'sub'
+        ]);
+    const name = readHeader(req, 'x-ms-client-principal-name')
+        || getPrincipalClaimValue(decodedPrincipal, [
+            'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+            'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn',
+            'preferred_username',
+            'email'
+        ]);
+    const provider = (readHeader(req, 'x-ms-client-principal-idp') || decodedPrincipal?.auth_typ || '').toLowerCase();
+
+    if (!id && !name && !provider) {
+        return null;
+    }
+
+    return {
+        id,
+        name,
+        provider
+    };
+}
+
+function enforceAppServiceAuthentication(req, pathname) {
+    if (!APP_SERVICE_AUTH_REQUIRED || pathname === '/api/health') {
+        return null;
+    }
+
+    const principal = getAuthenticatedPrincipal(req);
+    if (!principal?.id) {
+        const error = new Error('Authentication required. Sign in with your Kenway Microsoft account.');
+        error.statusCode = 401;
+        throw error;
+    }
+
+    if (APP_SERVICE_AUTH_ALLOWED_IDPS.size && !APP_SERVICE_AUTH_ALLOWED_IDPS.has(principal.provider)) {
+        const error = new Error('Unsupported identity provider. Sign in with the configured Microsoft Entra provider.');
+        error.statusCode = 403;
+        throw error;
+    }
+
+    return principal;
 }
 
 function sendText(res, statusCode, payload, contentType = 'text/plain; charset=utf-8') {
@@ -590,6 +698,7 @@ function buildSearchClause(search) {
         '(',
         `Name LIKE '%${searchTerm}%'`,
         `OR Title LIKE '%${searchTerm}%'`,
+        `OR Email LIKE '%${searchTerm}%'`,
         `OR MailingCity LIKE '%${searchTerm}%'`,
         `OR Account.Name LIKE '%${searchTerm}%'`,
         ')'
@@ -601,6 +710,7 @@ function formatContactRow(record) {
         id: record.Id,
         name: record.Name,
         title: record.Title || '',
+        email: record.Email || '',
         mailingCity: record.MailingCity || '',
         active: Boolean(record.Active__c),
         challengerProfile: record.Challenger_Profile__c || '',
@@ -647,12 +757,13 @@ function parsePage(page) {
     return Math.max(Number(page) || 1, 1);
 }
 
-async function getContacts({ listView, search, page, pageSize }) {
+async function getContacts({ listView, networkingOwner, search, page, pageSize }) {
     const metadata = await getMetadata();
     const listViewDefinitions = metadata.listViews || [];
     const listViewByDeveloperName = new Map(
         listViewDefinitions.map((definition) => [definition.developerName, definition])
     );
+    const ownerIds = new Set(metadata.ownerOptions.map((option) => option.value));
 
     const size = parsePageSize(pageSize);
     const requestedPage = parsePage(page);
@@ -677,6 +788,16 @@ async function getContacts({ listView, search, page, pageSize }) {
     const searchClause = search ? buildSearchClause(search) : '';
     if (searchClause) {
         whereClauses.push(searchClause);
+    }
+
+    if (networkingOwner) {
+        if (!ownerIds.has(networkingOwner)) {
+            const error = new Error('Invalid networking owner filter');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        whereClauses.push(`Networking_Owner__c = '${escapeSoql(networkingOwner)}'`);
     }
 
     const countSoql = [
@@ -834,6 +955,7 @@ async function sanitizeContactUpdate(payload) {
 
         switch (fieldName) {
             case 'Title':
+            case 'Email':
             case 'MailingCity':
             case 'Next_Steps__c':
             case 'Networking_Notes__c':
@@ -1117,14 +1239,19 @@ async function routeApi(req, res, pathname, searchParams) {
     if (req.method === 'GET' && pathname === '/api/health') {
         const requiredEnv = getRequiredEnvNames();
         const missing = requiredEnv.filter((name) => !process.env[name]);
+        const principal = getAuthenticatedPrincipal(req);
         sendJson(res, 200, {
             ok: true,
             authFlow: AUTH_FLOW,
+            appServiceAuthRequired: APP_SERVICE_AUTH_REQUIRED,
+            requestAuthenticated: Boolean(principal?.id),
             configComplete: missing.length === 0,
             missing
         });
         return;
     }
+
+    enforceAppServiceAuthentication(req, pathname);
 
     if (req.method === 'GET' && pathname === '/api/bootstrap') {
         const metadata = await getMetadata();
@@ -1135,6 +1262,7 @@ async function routeApi(req, res, pathname, searchParams) {
     if (req.method === 'GET' && pathname === '/api/contacts') {
         const contacts = await getContacts({
             listView: searchParams.get('listView') || '',
+            networkingOwner: searchParams.get('networkingOwner') || '',
             search: searchParams.get('search') || '',
             page: searchParams.get('page') || 1,
             pageSize: searchParams.get('pageSize') || 25

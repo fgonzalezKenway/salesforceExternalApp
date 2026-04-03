@@ -85,6 +85,8 @@ For each Azure Web App:
 
 1. Create a Linux Web App with Node.js `24 LTS`
 2. Configure App Service application settings for:
+   - `APP_SERVICE_AUTH_REQUIRED=true`
+   - `APP_SERVICE_AUTH_ALLOWED_IDPS=aad`
    - `SF_AUTH_FLOW`
    - `SF_LOGIN_URL`
    - `SF_API_VERSION`
@@ -97,6 +99,26 @@ For each Azure Web App:
    - `SCM_DO_BUILD_DURING_DEPLOYMENT=true`
    - `ENABLE_ORYX_BUILD=true`
 4. Add a custom domain later if you want employee-friendly URLs
+
+## Microsoft Entra SSO recommendation
+
+For the employee-facing UAT and PROD apps:
+
+1. Open the Web App in Azure Portal
+2. Go to `Authentication`
+3. Add identity provider: `Microsoft`
+4. Choose `Workforce configuration`
+5. Create a new app registration unless Kenway already has a standard registration process
+6. Set supported account type to `Current tenant - Single tenant`
+7. Require authentication for the app
+8. In Microsoft Entra Enterprise Applications, set `Assignment required` to `Yes`
+9. Assign the Kenway security group that should have access to the app
+
+Recommended behavior by environment:
+
+- local dev: App Service auth disabled, `APP_SERVICE_AUTH_REQUIRED=false`
+- UAT: App Service auth enabled, `APP_SERVICE_AUTH_REQUIRED=true`
+- PROD: App Service auth enabled, `APP_SERVICE_AUTH_REQUIRED=true`
 
 Recommended naming:
 

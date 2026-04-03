@@ -10,6 +10,7 @@ const FALLBACK_STANDARD_COLUMNS = [
         updateField: 'Networking_Plan_Association__c',
         optionsSource: 'planAssociationOptions'
     },
+    { key: 'email', label: 'Email', type: 'text', editable: true, updateField: 'Email' },
     { key: 'mailingCity', label: 'Mailing City', type: 'text', editable: true, updateField: 'MailingCity' },
     {
         key: 'challengerProfile',
@@ -76,6 +77,7 @@ const COLUMN_OVERRIDES = {
     accountName: { width: '12.5rem' },
     title: { width: '10rem' },
     networkingPlanAssociation: { width: '12.5rem' },
+    email: { width: '14rem' },
     mailingCity: { width: '7.5rem' },
     challengerProfile: { width: '9rem' },
     networkingOwnerId: { label: 'Networking Owner', width: '9.5rem' },
@@ -118,6 +120,7 @@ const elements = {
     addAccountView: document.querySelector('#addAccountView'),
     resultCount: document.querySelector('#resultCount'),
     verticalFilter: document.querySelector('#verticalFilter'),
+    networkingOwnerFilter: document.querySelector('#networkingOwnerFilter'),
     searchInput: document.querySelector('#searchInput'),
     pageSizeSelect: document.querySelector('#pageSizeSelect'),
     refreshButton: document.querySelector('#refreshButton'),
@@ -369,13 +372,18 @@ function getDirtyCount() {
     return state.drafts.size;
 }
 
-function buildOptions(selectElement, options, value, { includeBlank = true, multiple = false } = {}) {
+function buildOptions(
+    selectElement,
+    options,
+    value,
+    { includeBlank = true, multiple = false, blankLabel = 'None' } = {}
+) {
     selectElement.innerHTML = '';
 
     if (includeBlank && !multiple) {
         const blankOption = document.createElement('option');
         blankOption.value = '';
-        blankOption.textContent = 'None';
+        blankOption.textContent = blankLabel;
         selectElement.append(blankOption);
     }
 
@@ -411,32 +419,32 @@ function applyColumnSizing(cell, column) {
 }
 
 function syncFloatingScrollbar() {
-    if (!elements.tableWrap || !elements.tableScrollY || !elements.contactTable) {
+    if (!elements.tableWrap || !elements.contactTable) {
         return;
     }
 
     window.requestAnimationFrame(() => {
+        const scroller = elements.tableWrap;
         const tableWidth = Math.max(
             elements.contactTable.scrollWidth || 0,
-            elements.tableWrap.clientWidth
+            scroller.clientWidth
         );
-        elements.tableScrollY.style.width = `${tableWidth}px`;
 
         if (!elements.floatingScrollbar || !elements.floatingScrollbarContent) {
             return;
         }
 
-        const tableWrapRect = elements.tableWrap.getBoundingClientRect();
-        const scrollBodyRect = elements.tableScrollY.getBoundingClientRect();
-        const contentRect = elements.contactTable.getBoundingClientRect();
+        const tableWrapRect = scroller.getBoundingClientRect();
         const viewportBottom = window.innerHeight || document.documentElement.clientHeight;
-        const hasHorizontalOverflow = tableWidth - elements.tableWrap.clientWidth > 4;
-        const isScrollBodyVisible = scrollBodyRect.top < viewportBottom && scrollBodyRect.bottom > 0;
+        const hasHorizontalOverflow = tableWidth - scroller.clientWidth > 4;
+        const hasVerticalOverflow = scroller.scrollHeight - scroller.clientHeight > 4;
+        const isScrollBodyVisible = tableWrapRect.top < viewportBottom && tableWrapRect.bottom > 0;
+        const nativeHorizontalBarReachable = !hasVerticalOverflow
+            || (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2);
         const shouldShowFloatingBar = state.activeView === 'plans'
             && hasHorizontalOverflow
             && isScrollBodyVisible
-            && contentRect.bottom > scrollBodyRect.bottom
-            && contentRect.top < scrollBodyRect.bottom;
+            && !nativeHorizontalBarReachable;
 
         elements.floatingScrollbar.classList.toggle('hidden', !shouldShowFloatingBar);
         elements.floatingScrollbarContent.style.width = `${tableWidth}px`;
@@ -452,7 +460,7 @@ function syncFloatingScrollbar() {
         elements.floatingScrollbar.style.left = `${left}px`;
         elements.floatingScrollbar.style.width = `${width}px`;
         state.floatingScrollbarSyncing = true;
-        elements.floatingScrollbar.scrollLeft = elements.tableWrap.scrollLeft;
+        elements.floatingScrollbar.scrollLeft = scroller.scrollLeft;
         state.floatingScrollbarSyncing = false;
     });
 }
@@ -553,6 +561,36 @@ function populateCreateFormOptions() {
         getFieldOptions('accountTargetCompanyOptions'),
         elements.createAccountTargetCompany.value,
         { includeBlank: true }
+    );
+}
+
+function populatePlanFilterOptions() {
+    const currentListView = elements.verticalFilter.value;
+    const currentOwner = elements.networkingOwnerFilter.value;
+
+    elements.verticalFilter.innerHTML = '';
+
+    const listViewOptions = [
+        { label: 'All configured networking plans', value: '' },
+        ...(state.bootstrap?.filters?.listViewOptions || [])
+    ];
+
+    listViewOptions.forEach((option) => {
+        const element = document.createElement('option');
+        element.value = option.value;
+        element.textContent = option.label;
+        elements.verticalFilter.append(element);
+    });
+
+    if (listViewOptions.some((option) => option.value === currentListView)) {
+        elements.verticalFilter.value = currentListView;
+    }
+
+    buildOptions(
+        elements.networkingOwnerFilter,
+        getFieldOptions('ownerOptions'),
+        currentOwner,
+        { includeBlank: true, blankLabel: 'All networking owners' }
     );
 }
 
@@ -855,9 +893,11 @@ function syncRowActions(contactId, rowState) {
     const dirty = isRowDirty(contactId);
     const saving = state.savingRows.has(contactId);
 
+    rowState.row?.classList.toggle('is-dirty', dirty);
+    rowState.row?.classList.toggle('is-saving', saving);
     rowState.saveButton.disabled = !dirty || saving || state.isSavingAll;
     rowState.resetButton.disabled = !dirty || saving || state.isSavingAll;
-    rowState.status.textContent = saving ? 'Saving...' : dirty ? 'Pending' : '';
+    rowState.status.textContent = saving ? 'Saving...' : '';
 }
 
 function renderTableHead() {
@@ -898,7 +938,7 @@ function renderContacts() {
         const row = document.createElement('tr');
         row.className = 'contact-row';
 
-        const rowState = {};
+        const rowState = { row };
 
         columns.forEach((column) => {
             const cell = document.createElement('td');
@@ -981,6 +1021,7 @@ async function loadContacts({ preserveMessage = false, showLoading = true } = {}
 
     const params = new URLSearchParams({
         listView: elements.verticalFilter.value,
+        networkingOwner: elements.networkingOwnerFilter.value,
         search: elements.searchInput.value.trim(),
         page: String(state.page),
         pageSize: String(state.pageSize)
@@ -1028,26 +1069,7 @@ async function refreshAll() {
 
         const bootstrap = await apiFetch('/api/bootstrap');
         state.bootstrap = bootstrap;
-
-        const currentValue = elements.verticalFilter.value;
-        elements.verticalFilter.innerHTML = '';
-
-        const options = [
-            { label: 'All configured networking plans', value: '' },
-            ...(bootstrap.filters?.listViewOptions || [])
-        ];
-
-        options.forEach((option) => {
-            const element = document.createElement('option');
-            element.value = option.value;
-            element.textContent = option.label;
-            elements.verticalFilter.append(element);
-        });
-
-        if (options.some((option) => option.value === currentValue)) {
-            elements.verticalFilter.value = currentValue;
-        }
-
+        populatePlanFilterOptions();
         populateCreateFormOptions();
         await loadContacts({ preserveMessage: true, showLoading: false });
         showMessage('');
@@ -1283,6 +1305,11 @@ elements.verticalFilter.addEventListener('change', () => {
     loadContacts().catch((error) => showMessage(error.message, 'error'));
 });
 
+elements.networkingOwnerFilter.addEventListener('change', () => {
+    state.page = 1;
+    loadContacts().catch((error) => showMessage(error.message, 'error'));
+});
+
 elements.pageSizeSelect.addEventListener('change', () => {
     state.pageSize = Number(elements.pageSizeSelect.value) || 25;
     state.page = 1;
@@ -1351,16 +1378,12 @@ document.addEventListener('click', (event) => {
 });
 
 elements.tableWrap?.addEventListener('scroll', () => {
-    if (!elements.floatingScrollbar || state.floatingScrollbarSyncing) {
-        return;
+    if (elements.floatingScrollbar && !state.floatingScrollbarSyncing) {
+        state.floatingScrollbarSyncing = true;
+        elements.floatingScrollbar.scrollLeft = elements.tableWrap.scrollLeft;
+        state.floatingScrollbarSyncing = false;
     }
 
-    state.floatingScrollbarSyncing = true;
-    elements.floatingScrollbar.scrollLeft = elements.tableWrap.scrollLeft;
-    state.floatingScrollbarSyncing = false;
-});
-
-elements.tableScrollY?.addEventListener('scroll', () => {
     syncFloatingScrollbar();
 }, { passive: true });
 
